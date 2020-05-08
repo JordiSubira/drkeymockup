@@ -12,46 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package sciond
+package mockupsciond
 
 import (
 	"context"
 	"fmt"
-	"net"
 	"time"
 
 	"github.com/scionproto/scion/go/lib/addr"
 	"github.com/scionproto/scion/go/lib/common"
-	"github.com/scionproto/scion/go/lib/sciond"
 
 	"github.com/JordiSubira/drkeymockup/drkey"
 	"github.com/JordiSubira/drkeymockup/drkey/protocol"
 )
 
-// Service mocks up drkey feature in sciond.Service
-type Service struct {
-	sciond.Service
-}
-
-// NewService returns a SCIOND API connection factory.
-func NewService(name string) Service {
-	return Service{sciond.NewService(name)}
-}
-
-// Connect returns sciond.Connector interface implementation which also exports a mock for DRKeyGetLvl2Key
-func (s Service) Connect(ctx context.Context) (Connector, error) {
-	conn, err := s.Service.Connect(ctx)
-	return Connector{conn}, err
-}
-
-// Connector mocks up drkey feature in sciond.Connector
-type Connector struct {
-	sciond.Connector
-}
+const keyDuration = time.Hour * 24
 
 // DRKeyGetLvl2Key mocks retrieving Lvl2Key operation for SCIOND API
-func (c Connector) DRKeyGetLvl2Key(_ context.Context, meta drkey.Lvl2Meta, valTime uint32) (drkey.Lvl2Key, error) {
-
+func DRKeyGetLvl2Key(_ context.Context, meta drkey.Lvl2Meta, valTime uint32) (drkey.Lvl2Key, error) {
 	lvl1Key, err := getLvl1(meta.SrcIA, meta.DstIA, valTime)
 	if err != nil {
 		return drkey.Lvl2Key{}, common.NewBasicError("Error getting lvl1 key", err)
@@ -66,8 +44,9 @@ func (c Connector) DRKeyGetLvl2Key(_ context.Context, meta drkey.Lvl2Meta, valTi
 }
 
 func getLvl1(srcIA, dstIA addr.IA, valTime uint32) (drkey.Lvl1Key, error) {
-	duration := int64(time.Hour / time.Second)
-	epoch := drkey.NewEpoch(valTime, valTime+uint32(duration))
+	validSince := uint32(time.Unix(int64(valTime), 0).Truncate(keyDuration).Unix())
+	duration := uint32(keyDuration / time.Second)
+	epoch := drkey.NewEpoch(validSince, validSince+duration)
 
 	meta := drkey.SVMeta{
 		Epoch: epoch,
@@ -88,14 +67,4 @@ func getLvl1(srcIA, dstIA addr.IA, valTime uint32) (drkey.Lvl1Key, error) {
 	}
 
 	return lvl1, nil
-}
-
-// GetDefaultSCIONDAddress exports sciond.GetDefaultSCIONDAddress
-func GetDefaultSCIONDAddress(ia *addr.IA) string {
-	return sciond.GetDefaultSCIONDAddress(ia)
-}
-
-// Send exports sciond.Send
-func Send(pld *sciond.Pld, conn net.Conn) error {
-	return sciond.Send(pld, conn)
 }

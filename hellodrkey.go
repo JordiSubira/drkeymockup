@@ -21,10 +21,11 @@ import (
 	"time"
 
 	"github.com/scionproto/scion/go/lib/addr"
+	"github.com/scionproto/scion/go/lib/sciond"
 
 	"github.com/JordiSubira/drkeymockup/drkey"
 	"github.com/JordiSubira/drkeymockup/drkey/protocol"
-	"github.com/JordiSubira/drkeymockup/sciond"
+	"github.com/JordiSubira/drkeymockup/mockupsciond"
 )
 
 // var now = uint32(0)
@@ -34,6 +35,11 @@ var srcIA, _ = addr.IAFromString("1-ff00:0:110")
 var dstIA, _ = addr.IAFromString("1-ff00:0:111")
 var srcHost = addr.HostFromIPStr("127.0.0.1")
 var dstHost = addr.HostFromIPStr("127.0.0.2")
+
+const (
+	sciondForClient = "127.0.0.19:30255"
+	sciondForServer = "127.0.0.12:30255"
+)
 
 // Check just ensures the error is nil, or complains and quits
 func check(e error) {
@@ -59,13 +65,13 @@ func (c Client) HostKey(meta drkey.Lvl2Meta) drkey.Lvl2Key {
 	defer cancelF()
 
 	// get L2 key: (slow path)
-	key, err := c.sciond.DRKeyGetLvl2Key(ctx, meta, now)
+	key, err := mockupsciond.DRKeyGetLvl2Key(ctx, meta, now)
 	check(err)
 	return key
 }
 
 func ThisClientAndMeta() (Client, drkey.Lvl2Meta) {
-	c := NewClient(sciond.GetDefaultSCIONDAddress(&dstIA))
+	c := NewClient(sciondForClient)
 	meta := drkey.Lvl2Meta{
 		KeyType:  drkey.Host2Host,
 		Protocol: "piskes",
@@ -99,7 +105,7 @@ func (s Server) dsForServer(meta drkey.Lvl2Meta) drkey.DelegationSecret {
 		SrcIA:    meta.SrcIA,
 		DstIA:    meta.DstIA,
 	}
-	lvl2Key, err := s.sciond.DRKeyGetLvl2Key(ctx, dsMeta, now)
+	lvl2Key, err := mockupsciond.DRKeyGetLvl2Key(ctx, dsMeta, now)
 	check(err)
 	fmt.Printf("Only the server obtains it: DS key = %s\n", hex.EncodeToString(lvl2Key.Key))
 	ds := drkey.DelegationSecret{
@@ -125,7 +131,7 @@ func (s Server) HostKey(meta drkey.Lvl2Meta) drkey.Lvl2Key {
 }
 
 func ThisServerAndMeta() (Server, drkey.Lvl2Meta) {
-	server := NewServer(sciond.GetDefaultSCIONDAddress(&srcIA))
+	server := NewServer(sciondForServer)
 	meta := drkey.Lvl2Meta{
 		KeyType:  drkey.Host2Host,
 		Protocol: "piskes",
